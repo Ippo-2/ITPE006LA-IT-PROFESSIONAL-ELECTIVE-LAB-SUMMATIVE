@@ -66,6 +66,9 @@
   - [`frontend/styles.css`](./frontend/styles.css): High-contrast, WCAG-compliant responsive styling.
   - [`frontend/script.js`](./frontend/script.js): Dynamic client-side rendering, input validation, accessible live announcements (`aria-live`, `role="status"`), and attendee tracking.
 
+- **Responsive behavior**: Included because the project requirements request a responsive layout. It is the same simple experience at all widths; small-screen rules reflow the event cards and keep the wide attendee table usable without making this a mobile-only design.
+- **Verification**: Browser smoke testing confirmed six event cards, invalid-email feedback, successful registration, attendee-table updates, and seat-count updates. Keyboard tab order was checked as name, email, event, and submit. The page was checked at 320px with no horizontal overflow; the keyboard focus outline measures 5.35:1 against the page background.
+
 ---
 
 ## ## Task 3: Database Design & ERD Generation
