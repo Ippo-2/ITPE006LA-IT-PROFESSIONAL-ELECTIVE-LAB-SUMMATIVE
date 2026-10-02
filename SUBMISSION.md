@@ -7,10 +7,10 @@
 
 | Member | Assigned Role | Primary Responsibilities |
 |---|---|---|
-| **Member 1** | Systems Architect & Prompt Lead | Task 1 (Requirements & RCTC Prompting), Task 5 (Documentation & Integration) |
+| **Member 1 (Dylan Nicole)** | Systems Architect & Prompt Lead | Task 1 (Requirements & RCTC Prompting), Task 5 (Documentation & Integration) |
 | **Member 2 (Marc Jacob C. Lentejas)** | Frontend Engineer | Task 2 (AI-Assisted UI & WCAG 2.1 AA Accessibility) |
 | **Member 3 (Aerrol Jimenez)** | Database & Backend Engineer | Task 3 (3NF Schemas, Mermaid.js ERD, Production DDL Scripts), Task 4 Co-Lead |
-| **Member 4** | QA & Security Engineer | Task 4 (Shift-Left Unit Testing & Vulnerability Refactoring) |
+| **Member 4 (Samuel D. Sambalilo Jr.)**| QA & Security Engineer | Task 4 (Shift-Left Unit Testing & Vulnerability Refactoring) |
 
 ---
 
@@ -361,4 +361,4 @@ The team utilized AI tools (including Claude 3.5 Sonnet and Gemini models) as co
 |---|---|---|---|
 | **Task 2** | AI generated placeholder UI lacking accessible `aria-invalid` and `aria-live` error announcements on the registration form inputs. | Manually added accessible WCAG attributes, custom live regions, and semantic form error messaging. | Member 2 |
 | **Task 3** | Initial AI schema output placed foreign keys on `Registrations` and `Events` but omitted non-clustered performance indexes and allowed unbounded seat counts. | Added explicit `CREATE NONCLUSTERED INDEX` scripts on all foreign key columns and implemented `CK_Events_Seats_Range` and `UQ_Registrations_User_Event` constraints. | Member 3 |
-| **Task 4** | AI refactored code without applying asynchronous I/O (`ExecuteScalarAsync`) and omitted parameterized typed parameters with explicit sizes. | Added async C# `using` declaration blocks, parameterized `SqlParameter` with explicit type and size, and null-safe return value handling. | Member 4 / Member 3 
+| **Task 4** | The first AI refactor used synchronous I/O (`Open()` and `ExecuteReader()`). It also used a generic `CampusEvents` namespace that did not match the repository. | Rewrote the repository methods with `OpenAsync()`, `ExecuteScalarAsync()`, and `await using` declarations. Renamed the namespaces to `CampusEventManagement.Backend` and `CampusEventManagement.Tests`. Confirmed the query uses the real column names from `schema.sql`. | Member 4 |
