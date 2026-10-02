@@ -40,21 +40,48 @@
 
 ---
 
-## ## Task 1: Requirements Analysis & Prompt Architecture
-*(Lead: Member 1 - Systems Architect)*
+---
 
-### 1. RCTC Production-Grade Prompt
+## Systems Architect
+
+### Frontend Prompt
+
 ```text
-[Role-Context-Task-Constraints (RCTC) Prompt to be documented by Member 1]
+Act as a Senior Frontend Engineer specializing in web accessibility.
+
+Context: I'm building the frontend for a lightweight, local prototype of an Online Campus Event Management System. It will be built by a student team in 3 hours, so it must stay simple. Students can view upcoming campus events and register for one. Administrators can view the list of registered attendees.
+
+Task: Create these files inside a /frontend folder: index.html, styles.css, and script.js. The page must include:
+
+1. An Event Catalog: 6 hardcoded sample campus events as cards. Each card shows an image, title, date, venue, and seats left.
+2. A Registration Form: full name, student email, and an event dropdown populated from the events. Include a submit button and an accessible success message.
+3. A simple Admin section: a table listing registered attendees (name, email, event), updated when a registration is submitted. Keep the data in a plain JavaScript array in memory.
+
+Constraints:
+
+- Use plain HTML, CSS, and vanilla JavaScript only. Do not use frameworks or third-party libraries (no React, Redux, Bootstrap, Tailwind, jQuery).
+- Do not add a backend, login, or external API calls. Mock data only.
+- Use Semantic HTML5: <header>, <main>, <section>, <article>, <footer>. Each event card must be an <article>. Do not use <div> as a layout wrapper where a semantic tag fits.
+- Accessibility (WCAG POUR):
+  - Every input and select has a matching <label for="..."> AND an aria-label.
+  - Every <img> has descriptive alt text.
+  - Text/background colors meet WCAG AA contrast (4.5:1 or higher).
+  - Visible keyboard focus styles and a logical tab order.
+  - One <h1> and headings in proper order.
+  - Form errors and success messages use aria-live.
+- Validate that the email is in a valid format and show an accessible error message.
+- Make the layout responsive.
+- Use simple colored placeholder images (local or inline SVG), not external URLs.
+- Use clear field names: fullName, email, eventId, title, eventDate, venue, seatsLeft.
 ```
 
-### 2. AI Output Architecture
-```text
-[AI architectural response to be recorded by Member 1]
-```
+## Frontend Engineer
 
-### 3. Manual Grounding Evaluation
-*[3–4 sentence evaluation verifying if the AI-generated architecture is realistic for a 3-hour team prototype]*
+- Added a six-event catalog using semantic `<article>` cards, hardcoded event data, and inline SVG placeholder images with descriptive alt text.
+- Added a registration form with labeled name, email, and event controls; email validation announces errors accessibly, and successful registration announces confirmation.
+- Kept registrations in a plain JavaScript array in memory. Submissions update the admin attendee table and the selected event's remaining seat count.
+- Added visible keyboard focus, AA-contrast text colors, one `<h1>` with ordered headings, and responsive layout behavior as required by the prompt.
+- Tested the browser tab order, invalid and valid email submissions, attendee-table updates, seat updates, and the layout at a 320px viewport.
 
 ---
 
@@ -236,47 +263,4 @@ The team utilized AI tools (including Claude 3.5 Sonnet and Gemini models) as co
 |---|---|---|---|
 | **Task 2** | AI generated placeholder UI lacking accessible `aria-invalid` and `aria-live` error announcements on the registration form inputs. | Manually added accessible WCAG attributes, custom live regions, and semantic form error messaging. | Member 2 |
 | **Task 3** | Initial AI schema output placed foreign keys on `Registrations` and `Events` but omitted non-clustered performance indexes and allowed unbounded seat counts. | Added explicit `CREATE NONCLUSTERED INDEX` scripts on all foreign key columns and implemented `CK_Events_Seats_Range` and `UQ_Registrations_User_Event` constraints. | Member 3 |
-| **Task 4** | AI refactored code without applying asynchronous I/O (`ExecuteScalarAsync`) and omitted parameterized typed parameters with explicit sizes. | Added async C# `using` declaration blocks, parameterized `SqlParameter` with explicit type and size, and null-safe return value handling. | Member 4 / Member 3 |
-
----
-
-## Systems Architect
-
-### Frontend Prompt
-
-```text
-Act as a Senior Frontend Engineer specializing in web accessibility.
-
-Context: I'm building the frontend for a lightweight, local prototype of an Online Campus Event Management System. It will be built by a student team in 3 hours, so it must stay simple. Students can view upcoming campus events and register for one. Administrators can view the list of registered attendees.
-
-Task: Create these files inside a /frontend folder: index.html, styles.css, and script.js. The page must include:
-
-1. An Event Catalog: 6 hardcoded sample campus events as cards. Each card shows an image, title, date, venue, and seats left.
-2. A Registration Form: full name, student email, and an event dropdown populated from the events. Include a submit button and an accessible success message.
-3. A simple Admin section: a table listing registered attendees (name, email, event), updated when a registration is submitted. Keep the data in a plain JavaScript array in memory.
-
-Constraints:
-
-- Use plain HTML, CSS, and vanilla JavaScript only. Do not use frameworks or third-party libraries (no React, Redux, Bootstrap, Tailwind, jQuery).
-- Do not add a backend, login, or external API calls. Mock data only.
-- Use Semantic HTML5: <header>, <main>, <section>, <article>, <footer>. Each event card must be an <article>. Do not use <div> as a layout wrapper where a semantic tag fits.
-- Accessibility (WCAG POUR):
-  - Every input and select has a matching <label for="..."> AND an aria-label.
-  - Every <img> has descriptive alt text.
-  - Text/background colors meet WCAG AA contrast (4.5:1 or higher).
-  - Visible keyboard focus styles and a logical tab order.
-  - One <h1> and headings in proper order.
-  - Form errors and success messages use aria-live.
-- Validate that the email is in a valid format and show an accessible error message.
-- Make the layout responsive.
-- Use simple colored placeholder images (local or inline SVG), not external URLs.
-- Use clear field names: fullName, email, eventId, title, eventDate, venue, seatsLeft.
-```
-
-## Frontend Engineer
-
-- Added a six-event catalog using semantic `<article>` cards, hardcoded event data, and inline SVG placeholder images with descriptive alt text.
-- Added a registration form with labeled name, email, and event controls; email validation announces errors accessibly, and successful registration announces confirmation.
-- Kept registrations in a plain JavaScript array in memory. Submissions update the admin attendee table and the selected event's remaining seat count.
-- Added visible keyboard focus, AA-contrast text colors, one `<h1>` with ordered headings, and responsive layout behavior as required by the prompt.
-- Tested the browser tab order, invalid and valid email submissions, attendee-table updates, seat updates, and the layout at a 320px viewport.
+| **Task 4** | AI refactored code without applying asynchronous I/O (`ExecuteScalarAsync`) and omitted parameterized typed parameters with explicit sizes. | Added async C# `using` declaration blocks, parameterized `SqlParameter` with explicit type and size, and null-safe return value handling. | Member 4 / Member 3 
