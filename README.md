@@ -37,7 +37,15 @@ ITPE006LA-IT-PROFESSIONAL-ELECTIVE-LAB-SUMMATIVE/
 │   └── script.js                 # Event rendering, form validation, and session attendee roster
 │
 ├── database/                     # Database Architecture (Task 3)
-│   └── schema.sql                # Production-grade 3NF DDL script with constraints, indexes & seeds
+│   └── schema.sql                # SQL Server 3NF setup script with constraints, indexes & seeds
+│
+├── backend/                      # Backend data-access and validation (Task 4)
+│   ├── CampusEventManagement.Backend.csproj
+│   └── RegistrationService.cs
+│
+├── tests/                        # Mock-based unit tests (Task 4)
+│   ├── CampusEventManagement.Tests.csproj
+│   └── RegistrationServiceTests.cs
 │
 ├── SUBMISSION.md                 # Consolidated Examination Report (Tasks 1-5, ERD & Verification Log)
 └── README.md                     # Project overview and setup documentation
@@ -63,11 +71,11 @@ The frontend is built with vanilla HTML, CSS, and JavaScript. No build step or p
   Then navigate to `http://localhost:3000`.
 
 ### 2. Database Schema Deployment
-The database script is located in [`database/schema.sql`](./database/schema.sql) and is compatible with Microsoft SQL Server, Azure SQL, and ANSI SQL engines.
+The database script is located in [`database/schema.sql`](./database/schema.sql) and uses Transact-SQL for Microsoft SQL Server and Azure SQL.
 
 1. Open SQL Server Management Studio (SSMS) or Azure Data Studio.
 2. Connect to your database instance.
-3. Open and execute `database/schema.sql`.
+3. Open and execute `database/schema.sql` against a clean database. It is an initial-provisioning script and stops without deleting data if its tables already exist.
 4. The script automatically creates:
    - Tables: `Users`, `Venues`, `Events`, `Registrations`
    - Constraints: Primary Keys, Foreign Keys, Unique Keys, and CHECK constraints
@@ -113,7 +121,6 @@ erDiagram
         time start_time
         time end_time
         int capacity
-        int seats_available
         nvarchar status
         datetime2 created_at
     }
@@ -127,5 +134,7 @@ erDiagram
         datetime2 created_at
     }
 ```
+
+Available seats are derived from event capacity minus active registrations; they are not stored as a duplicate `Events` column.
 
 Detailed normalization justifications and verification records are documented in [`SUBMISSION.md`](./SUBMISSION.md).

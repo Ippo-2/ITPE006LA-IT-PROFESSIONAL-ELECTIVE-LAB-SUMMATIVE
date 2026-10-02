@@ -6,11 +6,14 @@
 -- Features: Foreign Key Cascades/Restraints, CHECK Constraints, Non-Clustered Indexes
 -- ==============================================================================
 
--- Drop tables if they already exist (in reverse dependency order)
-IF OBJECT_ID('dbo.Registrations', 'U') IS NOT NULL DROP TABLE dbo.Registrations;
-IF OBJECT_ID('dbo.Events', 'U') IS NOT NULL DROP TABLE dbo.Events;
-IF OBJECT_ID('dbo.Venues', 'U') IS NOT NULL DROP TABLE dbo.Venues;
-IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL DROP TABLE dbo.Users;
+-- Initial provisioning only. Refuse to overwrite existing tables or data.
+IF OBJECT_ID('dbo.Registrations', 'U') IS NOT NULL
+    OR OBJECT_ID('dbo.Events', 'U') IS NOT NULL
+    OR OBJECT_ID('dbo.Venues', 'U') IS NOT NULL
+    OR OBJECT_ID('dbo.Users', 'U') IS NOT NULL
+BEGIN
+    THROW 51000, 'Schema objects already exist. Run this setup script against a clean database; existing data will not be dropped.', 1;
+END;
 
 -- ------------------------------------------------------------------------------
 -- 1. USERS TABLE
@@ -59,7 +62,8 @@ CREATE TABLE dbo.Venues (
 -- ------------------------------------------------------------------------------
 -- 3. EVENTS TABLE
 -- Holds event metadata. References Venues and Users (organizer).
--- 3NF: Depends strictly on event_id; venue details isolated in Venues table.
+-- 3NF: Depends strictly on event_id; venue details are isolated and available
+-- seats are derived from capacity and active registrations.
 -- ------------------------------------------------------------------------------
 CREATE TABLE dbo.Events (
     event_id INT IDENTITY(1,1) NOT NULL,
@@ -72,7 +76,6 @@ CREATE TABLE dbo.Events (
     start_time TIME(0) NOT NULL,
     end_time TIME(0) NOT NULL,
     capacity INT NOT NULL,
-    seats_available INT NOT NULL,
     image_color NVARCHAR(10) NOT NULL CONSTRAINT DF_Events_ImageColor DEFAULT '#183532',
     image_description NVARCHAR(255) NULL,
     status NVARCHAR(20) NOT NULL CONSTRAINT DF_Events_Status DEFAULT 'published',
@@ -97,7 +100,6 @@ CREATE TABLE dbo.Events (
         
     -- CHECK Constraints
     CONSTRAINT CK_Events_Capacity_Positive CHECK (capacity > 0),
-    CONSTRAINT CK_Events_Seats_Range CHECK (seats_available >= 0 AND seats_available <= capacity),
     CONSTRAINT CK_Events_TimeOrder CHECK (end_time > start_time),
     CONSTRAINT CK_Events_Status_Valid CHECK (status IN ('draft', 'published', 'cancelled', 'completed'))
 );
@@ -162,7 +164,7 @@ CREATE NONCLUSTERED INDEX IX_Registrations_EventId
 -- Composite / Search optimization indexes for frequent query patterns
 CREATE NONCLUSTERED INDEX IX_Events_Status_Date
     ON dbo.Events (status, event_date)
-    INCLUDE (event_code, title, seats_available);
+    INCLUDE (event_code, title, capacity);
 
 CREATE NONCLUSTERED INDEX IX_Registrations_Status
     ON dbo.Registrations (status);
@@ -191,15 +193,16 @@ VALUES
     (N'Main Hall', N'Student Union', 150),
     (N'Cedar Auditorium', N'Performing Arts Center', 250);
 
--- Seed Events matching frontend/script.js catalog
-INSERT INTO dbo.Events (event_code, title, description, venue_id, organizer_id, event_date, start_time, end_time, capacity, seats_available, image_color, image_description, status)
+-- Seed Events matching frontend/script.js catalog. Capacity includes the seeded
+-- active registrations; available seats are derived by the backend and view.
+INSERT INTO dbo.Events (event_code, title, description, venue_id, organizer_id, event_date, start_time, end_time, capacity, image_color, image_description, status)
 VALUES
-    (N'harvest-fair', N'Autumn Harvest Fair', N'A campus fair celebration with autumn leaves and golden sun.', 1, 2, '2026-10-14', '09:00:00', '16:00:00', 50, 42, N'#c6603d', N'A campus fair illustration with autumn leaves and a golden sun.', 'published'),
-    (N'poetry-night', N'Open Mic Poetry Night', N'An open mic reading room evening with live poetry.', 2, 2, '2026-10-21', '18:00:00', '21:00:00', 30, 28, N'#406a82', N'A reading-room illustration with a microphone and blue stage lights.', 'published'),
-    (N'robotics-showcase', N'Student Robotics Showcase', N'Student innovation showcase featuring autonomous bots.', 3, 2, '2026-10-29', '10:00:00', '15:00:00', 70, 65, N'#537b55', N'A robotics showcase illustration with a small campus-built robot.', 'published'),
-    (N'film-screening', N'Outdoor Film Screening', N'Evening movie screening beneath the campus stars.', 4, 2, '2026-11-06', '19:00:00', '22:00:00', 100, 90, N'#76547d', N'An outdoor movie illustration with a screen beneath the evening sky.', 'published'),
-    (N'winter-market', N'Winter Makers Market', N'Craft market featuring handcrafted gifts and winter items.', 5, 2, '2026-11-18', '11:00:00', '17:00:00', 60, 54, N'#377b78', N'A makers market illustration with craft stalls and winter decorations.', 'published'),
-    (N'music-showcase', N'Campus Music Showcase', N'Live musical concert featuring student bands and solo acts.', 6, 2, '2026-12-02', '18:30:00', '21:30:00', 120, 110, N'#a65354', N'A live music illustration with a guitar under warm stage lights.', 'published');
+    (N'harvest-fair', N'Autumn Harvest Fair', N'A campus fair celebration with autumn leaves and golden sun.', 1, 2, '2026-10-14', '09:00:00', '16:00:00', 44, N'#c6603d', N'A campus fair illustration with autumn leaves and a golden sun.', 'published'),
+    (N'poetry-night', N'Open Mic Poetry Night', N'An open mic reading room evening with live poetry.', 2, 2, '2026-10-21', '18:00:00', '21:00:00', 29, N'#406a82', N'A reading-room illustration with a microphone and blue stage lights.', 'published'),
+    (N'robotics-showcase', N'Student Robotics Showcase', N'Student innovation showcase featuring autonomous bots.', 3, 2, '2026-10-29', '10:00:00', '15:00:00', 65, N'#537b55', N'A robotics showcase illustration with a small campus-built robot.', 'published'),
+    (N'film-screening', N'Outdoor Film Screening', N'Evening movie screening beneath the campus stars.', 4, 2, '2026-11-06', '19:00:00', '22:00:00', 90, N'#76547d', N'An outdoor movie illustration with a screen beneath the evening sky.', 'published'),
+    (N'winter-market', N'Winter Makers Market', N'Craft market featuring handcrafted gifts and winter items.', 5, 2, '2026-11-18', '11:00:00', '17:00:00', 54, N'#377b78', N'A makers market illustration with craft stalls and winter decorations.', 'published'),
+    (N'music-showcase', N'Campus Music Showcase', N'Live musical concert featuring student bands and solo acts.', 6, 2, '2026-12-02', '18:30:00', '21:30:00', 110, N'#a65354', N'A live music illustration with a guitar under warm stage lights.', 'published');
 
 -- Seed Sample Registrations
 INSERT INTO dbo.Registrations (user_id, event_id, status)
@@ -223,6 +226,13 @@ SELECT
     e.event_code,
     e.title AS event_title,
     e.event_date,
+    e.capacity,
+    e.capacity - (
+        SELECT COUNT(*)
+        FROM dbo.Registrations AS active_reg
+        WHERE active_reg.event_id = e.event_id
+          AND active_reg.status IN ('registered', 'attended')
+    ) AS seats_available,
     v.venue_name,
     v.building,
     r.registration_date,

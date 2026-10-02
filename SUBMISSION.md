@@ -31,6 +31,7 @@
 ### B. Database Schema Setup
 1. Open SQL Server Management Studio (SSMS), Azure Data Studio, or any ANSI SQL compatible query tool connected to your database instance.
 2. Open and execute the script located at [`/database/schema.sql`](./database/schema.sql).
+   The script is for initial provisioning and refuses to run if its tables already exist; it will not drop existing data.
 3. The script will:
    - Create tables `Users`, `Venues`, `Events`, and `Registrations` in 3rd Normal Form.
    - Enforce declarative constraints (Primary Keys, Foreign Keys with CASCADE/NO ACTION rules, and CHECK constraints).
@@ -54,9 +55,47 @@
 
 ---
 
+## Task 1: Requirements Analysis & Prompt Architecture
+*(Lead: Member 1 - Systems Architect)*
+
+### 1. Production-Grade RCTC Prompt
+
+```text
+Act as a Lead Systems Architect specializing in practical campus information systems.
+
+Context:
+A team of 3-4 fourth-year BSIT students has three hours to build a working prototype for an Online Campus Event Management System. Students must browse upcoming events and register; administrators must review attendee lists. The repository deliverables are a browser prototype, a normalized SQL schema, backend data-access/refactoring work, unit tests, and a consolidated report.
+
+Task:
+Propose a simple overall architecture that maps these requirements to a small repository and a three-hour team workflow. Describe the frontend, data model, backend boundary, registration and seat-count flows, test strategy, setup steps, and the limitations of the prototype. Distinguish implemented behavior from components that are not integrated.
+
+Constraints:
+- Prefer a static HTML/CSS/vanilla JavaScript prototype, SQL Server DDL, and a small .NET service/repository layer.
+- Keep the frontend usable without a backend; state clearly that in-memory registrations reset on refresh.
+- Use parameterized SQL, injected connection strings, disposable database resources, and mock-based unit tests.
+- Keep the plan feasible for a student team and document verification steps.
+
+Negative constraints:
+- Do not use frontend frameworks or third-party state-management libraries such as React or Redux.
+- Do not add authentication, cloud infrastructure, message queues, or external APIs to the local prototype.
+- Do not hardcode credentials or claim that the static frontend is connected to the SQL database unless an API integration exists.
+```
+
+### 2. AI Output: Overall System Design
+
+1. **Frontend:** Serve `frontend/index.html`, `styles.css`, and `script.js` as a static site. Render the six sample events from an in-memory event array; validate registration input in the browser; keep session attendees in a JavaScript array; and update the attendee table and seat display after a successful registration. This prototype does not persist browser registrations across refreshes.
+2. **Database:** Use SQL Server tables for `Users`, `Venues`, `Events`, and `Registrations`, with primary/foreign keys, uniqueness and validation constraints, and indexes on foreign keys. Derive available seats from event capacity minus active registrations rather than storing a second, drift-prone seat counter.
+3. **Backend boundary:** Keep the .NET 8 `RegistrationService` and `SqlRegistrationRepository` as a separate data-access component. Inject the connection string, use parameterized asynchronous SQL, and dispose SQL resources. The repository is not an HTTP API and is not currently wired to the static frontend.
+4. **Verification and workflow:** Build the static catalog/form first, define the schema and seed data, implement the service and mock-based tests, then verify the browser flow and repository instructions. Use xUnit and Moq for service validation without requiring a live database.
+
+### 3. Manual Grounding Evaluation
+
+This architecture is realistic for a three-hour prototype because the static frontend can be completed and tested independently of the database. The normalized schema and small service layer let the database/backend tasks proceed in parallel without requiring a deployed API. The frontend intentionally keeps registrations in memory, so it demonstrates the requested flow but does not provide persistence or database-backed attendee tracking. The SQL repository and mock tests verify backend logic separately; connecting the browser to that repository would require a web API and is outside this prototype's implemented scope.
+
 ---
 
-## Systems Architect
+## Task 2: AI-Assisted Frontend Development
+*(Lead: Member 2 - Frontend Engineer)*
 
 ### Frontend Prompt
 
@@ -89,7 +128,7 @@ Constraints:
 - Use clear field names: fullName, email, eventId, title, eventDate, venue, seatsLeft.
 ```
 
-## Frontend Engineer
+### Frontend Engineer Summary
 
 - Added a six-event catalog using semantic `<article>` cards, hardcoded event data, and inline SVG placeholder images with descriptive alt text.
 - Added a registration form with labeled name, email, and event controls; email validation announces errors accessibly, and successful registration announces confirmation.
@@ -97,12 +136,9 @@ Constraints:
 - Added visible keyboard focus, AA-contrast text colors, one `<h1>` with ordered headings, and responsive layout behavior as required by the prompt.
 - Tested the browser tab order, invalid and valid email submissions, attendee-table updates, seat updates, and the layout at a 320px viewport.
 
----
+### Source Files
 
-## ## Task 2: AI-Assisted Frontend Development
-*(Lead: Member 2 - Frontend Engineer)*
-
-- **Deliverables**: Committed in [`/frontend`](./frontend/)
+- Committed in [`/frontend`](./frontend/):
   - [`frontend/index.html`](./frontend/index.html): Semantic HTML5 markup (`<header>`, `<main>`, `<section>`, `<article>`, `<footer>`).
   - [`frontend/styles.css`](./frontend/styles.css): High-contrast, WCAG-compliant responsive styling.
   - [`frontend/script.js`](./frontend/script.js): Dynamic client-side rendering, input validation, accessible live announcements (`aria-live`, `role="status"`), and attendee tracking.
@@ -161,7 +197,7 @@ The schema strictly fulfills **Third Normal Form (3NF)** requirements across all
    - **Zero Transitive Dependencies**: Non-key attributes depend solely on candidate keys ($X \rightarrow Y$ only where $X$ is a superkey):
      - **Separation of Venues**: In an unnormalized design, `Events` might include `venue_name`, `building`, and `venue_capacity`, which would create a transitive dependency (`event_id -> venue_name -> building`). This is resolved by isolating physical location data into the `Venues` table.
      - **Separation of Users & Registrations**: Student details (`full_name`, `email`) are decoupled from `Registrations`. The `Registrations` table only stores the foreign key `user_id`, preventing update anomalies when student contact information changes.
-     - **Capacity & Registration Decoupling**: Dynamic seat calculations are maintained through transaction-safe constraints (`seats_available <= capacity`) and verifiable against count of active records in `Registrations`.
+   - **Capacity & Registration Decoupling**: Available seats are derived as event capacity minus active registrations; the value is not duplicated in `Events`, so it cannot drift from registration rows.
 
 ---
 
@@ -201,7 +237,6 @@ erDiagram
         time start_time "Start time"
         time end_time "End time"
         int capacity "Event seat quota"
-        int seats_available "Remaining seats"
         nvarchar image_color "Hex color theme"
         nvarchar image_description "Accessibility alt text"
         nvarchar status "draft|published|cancelled|completed"
@@ -233,10 +268,10 @@ The production-grade DDL script is committed in [`/database/schema.sql`](./datab
   - `CK_Users_Email_Format`: Validates standard email structure (`email LIKE '%_@__%.__%'`).
   - `CK_Users_Role_Valid`: Restricts roles to `'student'`, `'admin'`, or `'organizer'`.
   - `CK_Events_Capacity_Positive`: Enforces positive capacity quotas (`capacity > 0`).
-  - `CK_Events_Seats_Range`: Enforces `seats_available >= 0 AND seats_available <= capacity`.
   - `CK_Events_TimeOrder`: Verifies chronological correctness (`end_time > start_time`).
   - `CK_Registrations_Status_Valid`: Validates states (`'registered'`, `'attended'`, `'cancelled'`, `'waitlisted'`).
-- **Idempotency & Uniqueness**:
+- **Derived seat availability**: Calculated from event capacity and active registrations in the repository query and reporting view rather than stored as a duplicate counter.
+- **Uniqueness**:
   - `UQ_Registrations_User_Event`: Guarantees that a student can only register once per specific event.
   - `UQ_Events_EventCode`: Ensures unique identifiers corresponding to URL-safe event slugs.
 - **Non-Clustered Performance Indexes**:
@@ -261,7 +296,8 @@ Act as a Senior QA & Application Security Engineer specializing in C#/.NET, secu
 Context:
 I'm Member 4 on a student team building an Online Campus Event Management System (3-hour lab prototype). The backend is C# with SQL Server. Relevant tables (already created):
 - dbo.Users(user_id INT PK, full_name NVARCHAR(100), email NVARCHAR(255) UNIQUE, role NVARCHAR(20))
-- dbo.Events(event_id INT PK, event_code NVARCHAR(50), title NVARCHAR(200), capacity INT, seats_available INT, status NVARCHAR(20))
+- dbo.Events(event_id INT PK, event_code NVARCHAR(50), title NVARCHAR(200), capacity INT, status NVARCHAR(20))
+- Available seats are calculated as `capacity - COUNT(active registrations)`; they are not stored on `Events`.
 - dbo.Registrations(registration_id INT PK, user_id INT FK, event_id INT FK, registration_date DATETIME2, status NVARCHAR(20)) with a unique (user_id, event_id)
 Note: Registrations has NO Email column; email is in Users, so the query must JOIN Users and Registrations.
 
@@ -351,14 +387,14 @@ dotnet test tests
 *(Lead: Member 1 & Shared Team Review)*
 
 ### 1. AI Disclosure Statement
-The team utilized AI tools (including Claude 3.5 Sonnet and Gemini models) as collaborative coding assistants during the laboratory exam. 
+AI tools used while producing this repository included Claude 3.5 Sonnet, Gemini models, and GitHub Copilot. Generated prompts, code, and documentation were reviewed against the examination requirements and the repository's schema and source files.
 - **Prompt Engineering**: The team crafted explicit prompts containing strict system personas, contextual specifications, and negative constraints to generate initial codebases.
-- **Verification Strategy**: All AI outputs were independently inspected, cross-checked against business rules, linted, and executed. Manual interventions were applied whenever generated code lacked essential production safeguards.
+- **Verification Strategy**: Frontend flows were exercised in a browser, including invalid and valid registration, table updates, and seat updates. Backend logic was covered by the documented xUnit/Moq test run; the SQL repository still requires a live SQL Server for integration testing. Manual interventions were applied whenever generated code lacked essential safeguards.
 
 ### 2. Group Verification Log Table
 
 | Task # | Identified AI Flaw / Limitation | Manual Correction Applied | Member Responsible |
 |---|---|---|---|
 | **Task 2** | AI generated placeholder UI lacking accessible `aria-invalid` and `aria-live` error announcements on the registration form inputs. | Manually added accessible WCAG attributes, custom live regions, and semantic form error messaging. | Member 2 |
-| **Task 3** | Initial AI schema output placed foreign keys on `Registrations` and `Events` but omitted non-clustered performance indexes and allowed unbounded seat counts. | Added explicit `CREATE NONCLUSTERED INDEX` scripts on all foreign key columns and implemented `CK_Events_Seats_Range` and `UQ_Registrations_User_Event` constraints. | Member 3 |
+| **Task 3** | Initial schema dropped existing tables on rerun and stored a seat counter that could drift from registrations. | Replaced drops with a fail-safe clean-database guard and derived seats from capacity and active registrations; retained foreign-key indexes and the unique registration constraint. | Member 3 |
 | **Task 4** | The first AI refactor used synchronous I/O (`Open()` and `ExecuteReader()`). It also used a generic `CampusEvents` namespace that did not match the repository. | Rewrote the repository methods with `OpenAsync()`, `ExecuteScalarAsync()`, and `await using` declarations. Renamed the namespaces to `CampusEventManagement.Backend` and `CampusEventManagement.Tests`. Confirmed the query uses the real column names from `schema.sql`. | Member 4 |

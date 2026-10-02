@@ -61,9 +61,13 @@ namespace CampusEventManagement.Backend
         public async Task<int?> GetSeatsAvailableAsync(int eventId)
         {
             const string sql = @"
-                SELECT seats_available
-                FROM dbo.Events
-                WHERE event_id = @eventId;";
+                SELECT e.capacity - COUNT(r.registration_id)
+                FROM dbo.Events AS e
+                LEFT JOIN dbo.Registrations AS r
+                    ON r.event_id = e.event_id
+                    AND r.status IN ('registered', 'attended')
+                WHERE e.event_id = @eventId
+                GROUP BY e.capacity;";
 
             await using var conn = new SqlConnection(_connectionString);
             await using var cmd = new SqlCommand(sql, conn);
