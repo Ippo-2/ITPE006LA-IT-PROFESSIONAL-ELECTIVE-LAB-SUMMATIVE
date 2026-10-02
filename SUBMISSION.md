@@ -38,6 +38,20 @@
    - Populate initial seed records matching the campus frontend prototype.
    - Create the reporting view `dbo.vw_EventRegistrationOverview`.
 
+### C. Backend and Unit Tests
+1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+2. Open a terminal in the repository root.
+3. Run the unit tests:
+```bash
+   dotnet test tests
+```
+4. For per-test output:
+```bash
+   dotnet test tests --logger "console;verbosity=normal"
+```
+5. The tests use Moq mocks, so they need no database connection.
+6. The service code is in [`/backend/RegistrationService.cs`](./backend/RegistrationService.cs). To use `SqlRegistrationRepository` against a real database, pass the connection string from user-secrets or an environment variable. Do not hardcode it.
+
 ---
 
 ---
@@ -235,18 +249,102 @@ The production-grade DDL script is committed in [`/database/schema.sql`](./datab
 ---
 
 ## ## Task 4: Shift-Left Testing, Security & Refactoring
-*(Lead: Member 4 - QA & Security Engineer / Co-Lead: Member 3)*
+*(Lead: Member 4 - QA & Security Engineer)*
 
-### 1. Intentionally Flawed Snippet Diagnostics
-- **Vulnerability 1 (SQL Injection)**: The vulnerable code constructs SQL via string concatenation (`"SELECT * FROM Registrations WHERE Email = '" + inputEmail + "'"`), allowing arbitrary SQL execution via inputs such as `' OR '1'='1`.
-- **Vulnerability 2 (Unmanaged Resource Leak)**: `SqlConnection` and `SqlCommand` instances were opened without `using` blocks or explicit `Dispose()` / `Close()`, leading to database connection pool exhaustion under load.
+### 1. AI Prompt Used
 
-### 2. Unit Testing Strategy
-- Unit tests with mock objects (e.g., Moq) isolating `IRegistrationRepository` to test domain validation (e.g., `@univ.edu.ph` email domain checks) and seat availability logic without requiring live SQL connections.
+The prompt follows the RCTC format. It sets a persona, gives the table schema as context, and lists negative constraints.
 
-### 3. Refactored Implementation Deliverable
-- Committed under [`/backend/RegistrationService.cs`](./backend/RegistrationService.cs).
+```text
+Act as a Senior QA & Application Security Engineer specializing in C#/.NET, secure data access, and shift-left unit testing.
 
+Context:
+I'm Member 4 on a student team building an Online Campus Event Management System (3-hour lab prototype). The backend is C# with SQL Server. Relevant tables (already created):
+- dbo.Users(user_id INT PK, full_name NVARCHAR(100), email NVARCHAR(255) UNIQUE, role NVARCHAR(20))
+- dbo.Events(event_id INT PK, event_code NVARCHAR(50), title NVARCHAR(200), capacity INT, seats_available INT, status NVARCHAR(20))
+- dbo.Registrations(registration_id INT PK, user_id INT FK, event_id INT FK, registration_date DATETIME2, status NVARCHAR(20)) with a unique (user_id, event_id)
+Note: Registrations has NO Email column; email is in Users, so the query must JOIN Users and Registrations.
+
+Here is an intentionally flawed method I must fix:
+
+// Flawed code: Contains SQL Injection and unmanaged resource leak
+public string GetUserRegistration(string inputEmail) {
+    string connStr = "Server=myServerAddress;Database=myDataBase;User Id=myUsername;Password=myPassword;";
+    SqlConnection conn = new SqlConnection(connStr);
+    conn.Open(); // Connection is not closed or disposed
+    SqlCommand cmd = new SqlCommand("SELECT * FROM Registrations WHERE Email = '" + inputEmail + "'", conn);
+    return cmd.ExecuteScalar().ToString();
+}
+
+Task (do these in order, with a clear heading for each):
+1. DIAGNOSE: List every vulnerability and bad practice in the snippet above: the SQL injection (include an example malicious input and what it would do), the unmanaged resource leak (SqlConnection and SqlCommand never disposed, and what it causes under load, such as connection pool exhaustion), the hardcoded credentials, SELECT * with ExecuteScalar, and the NullReferenceException when no row is found. Rate each by severity.
+2. REFACTOR: Rewrite it as /backend/RegistrationService.cs (C#, .NET 8, Microsoft.Data.SqlClient). Requirements:
+   - Define an interface IRegistrationRepository (e.g., GetRegistrationStatusByEmail(string email), GetSeatsAvailable(int eventId)) and put the SQL access in a SqlRegistrationRepository class.
+   - In the repository, use a parameterized query (SqlParameter with explicit SqlDbType.NVarChar and size 255), JOIN Users and Registrations, select only the needed column, and wrap SqlConnection and SqlCommand (and any reader) in `using` statements.
+   - Read the connection string from IConfiguration or an injected value, never hardcoded.
+   - Return null (or a clear "not found" result) instead of throwing when there is no match; make it null-safe.
+   - Create a RegistrationService class that receives IRegistrationRepository through constructor injection and exposes GetUserRegistration(string inputEmail), plus two validation routines: IsValidStudentEmail (domain must be @univ.edu.ph) and HasSeatsAvailable(int eventId).
+   - Add short comments explaining each security fix.
+3. UNIT TESTS: Write xUnit tests using Moq to mock IRegistrationRepository so no real database is touched. Cover at minimum:
+   - Email validation: valid @univ.edu.ph, wrong domain, null/empty/whitespace, mixed case, a lookalike domain such as name@univ.edu.ph.evil.com, and a SQL injection string such as ' OR '1'='1.
+   - Seat availability: seats > 0, seats = 0, event not found, and negative values.
+   - GetUserRegistration: registration exists, not found (returns null), and verify with Moq that the repository is called exactly once with the exact email passed in.
+   Use the Arrange-Act-Assert pattern and descriptive test names.
+
+Constraints:
+- Do not build any SQL by string concatenation or string interpolation.
+- Do not hardcode credentials or connection strings.
+- Do not call a real database in the unit tests; use mocks only.
+- Do not use SELECT *.
+- Do not leave any SqlConnection, SqlCommand, or SqlDataReader undisposed.
+- Do not use third-party libraries beyond xUnit, Moq, and Microsoft.Data.SqlClient.
+- Do not skip any of the three tasks, and keep explanations short and practical.
+
+Output format: three sections (Diagnosis as a table, Refactored RegistrationService.cs as one code block, Unit tests as one code block), and finish with a bullet list of the exact commands to run the tests (dotnet test).
+```
+
+### 2. AI Output: Diagnosis
+
+| # | Issue | What happens | Severity |
+|---|---|---|---|
+| 1 | **SQL injection** (string concatenation) | Input `' OR '1'='1` makes the query `WHERE Email = '' OR '1'='1'`, which matches every row. Input `x'; DROP TABLE Registrations;--` ends the statement and runs a second one. | **Critical** |
+| 2 | **Resource leak** (`SqlConnection` and `SqlCommand` never disposed) | Each call holds a pooled connection until garbage collection. The default pool holds 100 connections. Under load the pool runs out and callers time out. | **High** |
+| 3 | **Hardcoded credentials** | The password sits in source code and Git history. Rotating it needs a code change. | **High** |
+| 4 | **Wrong schema in query** | `Registrations` has no `Email` column, so the query fails at runtime. The email lives in `Users`. | **Medium** |
+| 5 | **`NullReferenceException`** | `ExecuteScalar()` returns `null` when no row matches, and `.ToString()` on `null` throws. | **Medium** |
+| 6 | **`SELECT *` with `ExecuteScalar`** | `ExecuteScalar` reads only the first column of the first row, so the result is arbitrary. | **Low** |
+| 7 | **No input validation or layering** | Nothing checks the email. SQL and logic share one method, so it cannot be tested without a database. | **Low** |
+
+### 3. AI Output: Refactored Code and Tests
+
+- **Refactored code:** [`/backend/RegistrationService.cs`](./backend/RegistrationService.cs)
+  - `IRegistrationRepository` and `SqlRegistrationRepository` hold the SQL access.
+  - Parameterized queries use `SqlDbType.NVarChar` at size 255 for email and `SqlDbType.Int` for the event ID.
+  - `await using` declarations dispose the connection and command, and the async methods use `OpenAsync` and `ExecuteScalarAsync`.
+  - The query joins `Users` and `Registrations` and selects one column.
+  - The connection string is injected. No credentials appear in code.
+  - Missing rows return `null` instead of throwing.
+  - `RegistrationService` takes the repository through its constructor. It exposes `GetUserRegistrationAsync`, `IsValidStudentEmail`, and `HasSeatsAvailableAsync`.
+- **Unit tests:** [`/tests/RegistrationServiceTests.cs`](./tests/RegistrationServiceTests.cs)
+  - xUnit with Moq. A strict mock replaces `IRegistrationRepository`, so no test touches a database.
+  - Email cases: valid, mixed case, wrong domain, null/empty/whitespace, lookalike domains, and SQL injection strings.
+  - Seat cases: more than 0, 0, event not found, and negative values.
+  - Registration cases: found, not found, and one repository call with the exact email. Invalid emails never reach the repository.
+
+### 4. How to Run the Tests
+
+```bash
+dotnet test tests
+```
+
+- **Test result:** All 35 tests passed (0 failed, 0 skipped) via dotnet test tests
+- **Tested by:** Samuel D. Sambalilo Jr.
+
+### 5. Manual Verification
+
+- **Checked against the schema:** the query uses the real `dbo.Users` and `dbo.Registrations` columns from `/database/schema.sql`. The test emails match the seed data.
+- **Refinement:** the first refactor used synchronous `Open()` and `ExecuteReader()`. The team changed it to async I/O with `await using`.
+- **Limit:** `SqlRegistrationRepository` needs a live SQL Server, so the mock-only tests do not cover it.
 ---
 
 ## ## Task 5: Group Integration & Verification Report
