@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183532">
+  <title>Campus Events | Northfield University</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <p class="eyebrow">Northfield University</p>
+    <h1>Campus events</h1>
+    <p>Find your next gathering, idea, or campus tradition.</p>
+  </header>
+
+  <main>
+    <section class="events-section" aria-labelledby="events-heading">
+      <h2 id="events-heading">Upcoming events</h2>
+      <section class="event-grid" id="eventCatalog" aria-label="Campus events">
+        <p class="loading-message">Loading events...</p>
+      </section>
+    </section>
+
+    <section class="registration-section" aria-labelledby="registration-heading">
+      <h2 id="registration-heading">Register for an event</h2>
+      <form id="registrationForm" novalidate>
+        <label for="fullName">Full name</label>
+        <input id="fullName" name="fullName" type="text" autocomplete="name" required aria-label="Full name">
+
+        <label for="email">Student email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required aria-label="Student email" aria-describedby="emailError">
+        <p class="field-error" id="emailError" aria-live="assertive" hidden></p>
+
+        <label for="eventId">Choose an event</label>
+        <select id="eventId" name="eventId" required aria-label="Choose an event">
+          <option value="">Choose an event</option>
+        </select>
+
+        <button type="submit">Register</button>
+      </form>
+      <p class="form-error" id="formError" role="alert" aria-live="assertive" hidden></p>
+      <p class="success-message" id="successMessage" role="status" aria-live="polite" tabindex="-1" hidden></p>
+    </section>
+
+    <section class="admin-section" id="attendees" aria-labelledby="attendees-heading">
+      <h2 id="attendees-heading">Registered attendees</h2>
+      <p class="section-note">This list is stored in memory and clears when the page is refreshed.</p>
+      <table>
+        <caption>Attendees registered during this session</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Email</th>
+            <th scope="col">Event</th>
+          </tr>
+        </thead>
+        <tbody id="attendeeRows">
+          <tr class="empty-row">
+            <td colspan="3">No registrations yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Northfield University · Campus life, together</p>
+  </footer>
+</body>
+</html>
